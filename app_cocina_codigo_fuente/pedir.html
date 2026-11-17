@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cocina Tita — Haz tu Pedido Navideño 🎄</title>
+    <meta name="theme-color" content="#b02a37">
+    <link rel="icon" href="img/logo.png">
+    <!-- Firebase SDK v10 (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --primary: #b02a37;
+            --primary-dark: #781d25;
+            --secondary: #166534;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #166534;
+            --danger: #c0392b;
+            --radius: 16px;
+            --shadow: 0 4px 16px rgba(30, 41, 59, 0.08);
+            --shadow-hover: 0 8px 24px rgba(30, 41, 59, 0.14);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg); color: var(--text-main); min-height: 100vh; padding-bottom: 90px; }
+
+        /* HEADER */
+        header {
+            background: linear-gradient(135deg, #b02a37 0%, #c53030 50%, #166534 100%);
+            color: #ffffff;
+            padding: 24px 18px 20px;
+            text-align: center;
+            border-bottom-left-radius: 28px;
+            border-bottom-right-radius: 28px;
+            box-shadow: 0 6px 20px rgba(176, 42, 55, 0.25);
+            position: relative;
+        }
+        .header-logo {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            background: #ffffff;
+            padding: 4px;
+            object-fit: contain;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            margin-bottom: 8px;
+        }
+        .header-title { font-size: 24px; font-weight: 800; letter-spacing: 0.5px; }
+        .header-sub { font-size: 13px; opacity: 0.9; margin-top: 3px; }
+
+        /* STATUS BADGE */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            animation: pulso-dot 2s infinite;
+        }
+        @keyframes pulso-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .status-pill.cerrado .status-dot {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        /* BANNER CERRADO */
+        #banner-cerrado {
+            display: none;
+            margin: 16px;
+            padding: 20px;
+            background: #fdf2f2;
+            border: 2px solid #f5c6cb;
+            border-radius: var(--radius);
+            text-align: center;
+            color: #721c24;
+            box-shadow: var(--shadow);
+        }
+        #banner-cerrado h3 { font-size: 18px; margin-bottom: 6px; }
+        #banner-cerrado p { font-size: 14px; line-height: 1.4; color: #85222b; }
+
+        /* CONTENEDOR PRINCIPAL */
+        .container { max-width: 680px; margin: 0 auto; padding: 18px 16px; }
+        .seccion-titulo {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* GRID PLATILLOS */
+        .menu-grid { display: flex; flex-direction: column; gap: 14px; }
+        .platillo-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            box-shadow: var(--shadow);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .platillo-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+        .platillo-info { flex: 1; }
+        .platillo-nombre { font-size: 16px; font-weight: 700; color: var(--text-main); }
+        .platillo-desc { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.35; }
+        .platillo-precio { font-size: 16px; font-weight: 800; color: var(--primary); margin-top: 6px; }
+
+        /* SELECTOR DE CANTIDAD */
+        .controles-qty {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fbf5ef;
+            padding: 4px 6px;
+            border-radius: 24px;
+            border: 1px solid #ebd9c8;
+        }
+        .btn-qty {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: #ffffff;
+            color: var(--primary);
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.15s, transform 0.1s;
+        }
+        .btn-qty:active { transform: scale(0.92); }
+        .btn-qty.plus { background: var(--primary); color: #fff; }
+        .qty-num { font-size: 15px; font-weight: 700; min-width: 20px; text-align: center; }
+
+        /* BARRA INFERIOR CARRITO */
+        .barra-carrito {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 12px 18px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        .barra-carrito.oculta { transform: translateY(100%); }
+        .barra-total-info { display: flex; flex-direction: column; }
+        .barra-cant-items { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+        .barra-monto { font-size: 20px; font-weight: 800; color: var(--primary); }
+        .btn-ver-pedido {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 28px;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(211, 84, 0, 0.35);
+        }
+
+        /* MODAL CHECKOUT */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.activo { display: flex; }
+        .modal-sheet {
+            background: #ffffff;
+            width: 100%;
+            max-width: 580px;
+            max-height: 90vh;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 20px;
+            overflow-y: auto;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.2);
+            animation: slideUp 0.25s ease-out;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-header h2 { font-size: 19px; font-weight: 800; }
+        .btn-cerrar-modal {
+            background: #f0e6dc; border: none; width: 32px; height: 32px;
+            border-radius: 50%; font-size: 16px; font-weight: bold; cursor: pointer;
+        }
+
+        .lista-resumen { margin-bottom: 16px; }
+        .item-resumen {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 14px;
+        }
+        .item-resumen-cant { font-weight: 700; color: var(--primary); margin-right: 6px; }
+
+        /* SELECTOR DOMICILIO / RECOGE */
+        .tipo-entrega-tabs { display: flex; gap: 10px; margin: 14px 0; }
+        .tab-entrega {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            text-align: center;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-entrega.activo {
+            border-color: var(--primary);
+            background: #fef5ee;
+            color: var(--primary);
+        }
+
+        /* FORMULARIO */
+        .campo-grupo { margin-bottom: 12px; }
+        .campo-grupo label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 5px; color: var(--text-muted); }
+        .campo-grupo input, .campo-grupo textarea {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            background: #faf8f5;
+        }
+        .campo-grupo input:focus, .campo-grupo textarea:focus { border-color: var(--primary); background: #ffffff; }
+
+        .desglose-totales {
+            background: #faf6f2;
+            padding: 14px;
+            border-radius: 12px;
+            margin: 16px 0;
+            font-size: 14px;
+        }
+        .desglose-fila { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .desglose-fila.total-final {
+            border-top: 1.5px solid #ebd9c8;
+            padding-top: 8px;
+            margin-top: 8px;
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .btn-confirmar {
+            width: 100%;
+            background: linear-gradient(135deg, #27ae60 0%, #219653 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(39, 174, 96, 0.35);
+        }
+
+        /* PANTALLA DE ÉXITO */
+        #pantalla-exito {
+            display: none;
+            text-align: center;
+            padding: 24px 12px;
+        }
+        .exito-icono { font-size: 58px; margin-bottom: 10px; }
+        .folio-badge {
+            display: inline-block;
+            background: #eafaf1;
+            border: 2px solid #27ae60;
+            color: #1e824c;
+            font-size: 20px;
+            font-weight: 800;
+            padding: 8px 18px;
+            border-radius: 20px;
+            margin: 14px 0;
+            letter-spacing: 1px;
+        }
+        .btn-wa {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            background: #25D366;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 14px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            margin-top: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CABECERA -->
+    <header>
+        <img src="img/logo.png" class="header-logo" alt="Cocina Tita">
+        <h1 class="header-title">COCINA TITA 🎄</h1>
+        <p class="header-sub">Sabor tradicional para celebrar en familia ❄️</p>
+        <div>
+            <div class="status-pill" id="status-pill">
+                <span class="status-dot"></span>
+                <span id="status-texto">Verificando cocina...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- BANNER SI LA COCINA ESTÁ CERRADA / FUERA DE LÍNEA -->
+    <div id="banner-cerrado">
+        <h3>⛔ Cocina Fuera de Servicio por Ahora</h3>
+        <p id="banner-cerrado-msg">Por el momento no estamos recibiendo pedidos en línea (la cocina está fuera de servicio o no laboró hoy). ¡Muchas gracias por tu comprensión y felices fiestas!</p>
+    </div>
+
+    <!-- CONTENIDO DEL MENÚ -->
+    <div class="container" id="menu-container">
+        <div class="seccion-titulo">🍽️ Menú Navideño Especial</div>
+        <div class="menu-grid" id="lista-platillos">
+            <!-- Renderizado dinámico de platillos -->
+        </div>
+    </div>
+
+    <!-- BARRA INFERIOR DE CARRITO FLOTANTE -->
+    <div class="barra-carrito oculta" id="barra-carrito">
+        <div class="barra-total-info">
+            <span class="barra-cant-items" id="barra-cant-items">0 platillos</span>
+            <span class="barra-monto" id="barra-monto">$0.00</span>
+        </div>
+        <button class="btn-ver-pedido" onclick="abrirModalPedido()">Ver Pedido ➔</button>
+    </div>
+
+    <!-- MODAL DE CHECKOUT / CONFIRMACIÓN -->
+    <div class="modal-overlay" id="modal-checkout">
+        <div class="modal-sheet">
+            <div class="modal-header">
+                <h2>Tu Pedido Navideño</h2>
+                <button class="btn-cerrar-modal" onclick="cerrarModalPedido()">✕</button>
+            </div>
+
+            <!-- VISTA NORMAL: FORMULARIO -->
+            <div id="vista-formulario">
+                <div class="lista-resumen" id="checkout-resumen"></div>
+
+                <div class="tipo-entrega-tabs">
+                    <button class="tab-entrega activo" id="tab-domicilio" onclick="setTipoEntrega('domicilio')">🛷 A Domicilio 🎅</button>
+                    <button class="tab-entrega" id="tab-recoge" onclick="setTipoEntrega('recoge')">🏃 Paso a Recoger 🎄</button>
+                </div>
+
+                <div class="campo-grupo">
+                    <label>Tu Nombre Completo *</label>
+                    <input type="text" id="cli-nombre" placeholder="Ej. Juan Pérez">
+                </div>
+
+                <div class="campo-grupo">
+                    <label>Teléfono Celular *</label>
+                    <input type="tel" id="cli-tel" placeholder="Ej. 222 123 4567">
+                </div>
+
+                <div class="campo-grupo" id="grupo-direccion">
+                    <label>Dirección de Entrega y Referencias *</label>
+                    <textarea id="cli-dir" rows="2" placeholder="Calle, número, colonia y fachada..."></textarea>
+                </div>
+
+                <div class="campo-grupo">
+                    <label>Notas especiales para la cocina (opcional)</label>
+                    <input type="text" id="cli-notas" placeholder="Ej. Salsa aparte, sin cebolla...">
+                </div>
+
+                <div class="desglose-totales">
+                    <div class="desglose-fila"><span>Subtotal comida:</span><span id="res-subtotal">$0.00</span></div>
+                    <div class="desglose-fila" id="fila-envio"><span>Costo de envío estimado:</span><span id="res-envio">$25.00</span></div>
+                    <div class="desglose-fila total-final"><span>Total a Pagar:</span><span id="res-total">$0.00</span></div>
+                </div>
+
+                <button class="btn-confirmar" id="btn-enviar-pedido" onclick="enviarPedidoFirebase()">✅ Enviar Pedido a Cocina</button>
+            </div>
+
+            <!-- VISTA ÉXITO: CONFIRMACIÓN CON FOLIO -->
+            <div id="pantalla-exito">
+                <div class="exito-icono">🎉👨‍🍳</div>
+                <h2>¡Pedido Enviado a la Cocina!</h2>
+                <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">Tu pedido ha entrado en la pantalla de la cocina en tiempo real.</p>
+                <div class="folio-badge" id="exito-folio">FOLIO #WEB-1001</div>
+                <div style="background:#faf8f5; border:1px solid var(--border); border-radius:12px; padding:12px; font-size:13px; text-align:left;" id="exito-detalles"></div>
+                <a href="#" target="_blank" class="btn-wa" id="btn-wa-contacto">💬 Notificar por WhatsApp</a>
+                <button class="btn-ver-pedido" style="width:100%; margin-top:10px; background:#166534;" onclick="reiniciarPedido()">Hacer otro pedido</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN DE FIREBASE OFICIAL
+        const firebaseConfig = {
+            apiKey: "AIzaSyBkuy0Hq7iaBGgwmQfjqMYKQSgTYx1ay1A",
+            authDomain: "cocina-tita.firebaseapp.com",
+            projectId: "cocina-tita",
+            storageBucket: "cocina-tita.firebasestorage.app",
+            messagingSenderId: "499185674891",
+            appId: "1:499185674891:web:cccdf9aef62ad36048c28e",
+            measurementId: "G-CGJPJ9Z1ZH"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // ESTADO LOCAL
+        let cocinaAbierta = true;
+        let menuPlatillos = [
+            { nombre: "Tacos Dorados", precio: 15.0, descripcion: "Orden dorada crujiente con lechuga, crema y queso fresco." },
+            { nombre: "Mole con Pollo", precio: 90.0, descripcion: "Receta tradicional poblana con arroz y tortillas recién hechas." },
+            { nombre: "Arroz", precio: 25.0, descripcion: "Porción individual de arroz rojo casero tradicional." }
+        ];
+        let carrito = {}; // { "Tacos Dorados": { cantidad: 2, precio: 15 } }
+        let tipoEntrega = 'domicilio';
+        const COSTO_ENVIO_DEFAULT = 25.0;
+
+        // INICIALIZACIÓN
+        document.addEventListener('DOMContentLoaded', () => {
+            escucharEstadoCocina();
+            escucharMenuOnline();
+        });
+
+        // 1. ESCUCHAR ESTADO EN TIEMPO REAL
+        function escucharEstadoCocina() {
+            db.collection('estado_cocina').doc('actual').onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    cocinaAbierta = data.abierto === true;
+                    actualizarUIEstado(cocinaAbierta, data.mensaje);
+                } else {
+                    actualizarUIEstado(true, '');
+                }
+            }, err => {
+                console.warn('Error escuchando estado, fallback a abierto:', err);
+                actualizarUIEstado(true, '');
+            });
+        }
+
+        function actualizarUIEstado(abierto, mensajePersonalizado) {
+            const pill = document.getElementById('status-pill');
+            const texto = document.getElementById('status-texto');
+            const banner = document.getElementById('banner-cerrado');
+            const bannerMsg = document.getElementById('banner-cerrado-msg');
+            const container = document.getElementById('menu-container');
+
+            if (abierto) {
+                pill.classList.remove('cerrado');
+                texto.textContent = "🟢 Cocina Abierta • Recibiendo pedidos";
+                banner.style.display = 'none';
+                container.style.opacity = '1';
+                container.style.pointerEvents = 'auto';
+            } else {
+                pill.classList.add('cerrado');
+                texto.textContent = "🔴 Cocina Fuera de Línea";
+                banner.style.display = 'block';
+                if (mensajePersonalizado) bannerMsg.textContent = mensajePersonalizado;
+                container.style.opacity = '0.45';
+                container.style.pointerEvents = 'none';
+                cerrarModalPedido();
+                document.getElementById('barra-carrito').classList.add('oculta');
+            }
+        }
+
+        // 2. ESCUCHAR MENÚ EN TIEMPO REAL
+        function escucharMenuOnline() {
+            db.collection('menu_online').doc('actual').onSnapshot(doc => {
+                if (doc.exists && doc.data().platillos && doc.data().platillos.length) {
+                    menuPlatillos = doc.data().platillos;
+                }
+                renderizarMenu();
+            }, () => {
+                renderizarMenu();
+            });
+        }
+
+        function renderizarMenu() {
+            const lista = document.getElementById('lista-platillos');
+            lista.innerHTML = '';
+            menuPlatillos.forEach(p => {
+                const cant = carrito[p.nombre]?.cantidad || 0;
+                const card = document.createElement('div');
+                card.className = 'platillo-card';
+                card.innerHTML = `
+                    <div class="platillo-info">
+                        <div class="platillo-nombre">${escapar(p.nombre)}</div>
+                        <div class="platillo-desc">${escapar(p.descripcion || 'Preparado fresco al momento.')}</div>
+                        <div class="platillo-precio">$${parseFloat(p.precio).toFixed(2)}</div>
+                    </div>
+                    <div class="controles-qty">
+                        <button class="btn-qty" onclick="cambiarCantidad('${escapar(p.nombre)}', -1)">−</button>
+                        <span class="qty-num" id="qty-${escaparId(p.nombre)}">${cant}</span>
+                        <button class="btn-qty plus" onclick="cambiarCantidad('${escapar(p.nombre)}', 1)">+</button>
+                    </div>
+                `;
+                lista.appendChild(card);
+            });
+            actualizarBarraCarrito();
+        }
+
+        // 3. CARRITO
+        function cambiarCantidad(nombre, delta) {
+            if (!cocinaAbierta) {
+                alert('La cocina se encuentra fuera de servicio en este momento.');
+                return;
+            }
+            const platillo = menuPlatillos.find(x => x.nombre === nombre);
+            if (!platillo) return;
+
+            if (!carrito[nombre]) {
+                carrito[nombre] = { cantidad: 0, precio: parseFloat(platillo.precio) };
+            }
+            carrito[nombre].cantidad += delta;
+            if (carrito[nombre].cantidad <= 0) {
+                delete carrito[nombre];
+            }
+
+            const el = document.getElementById(`qty-${escaparId(nombre)}`);
+            if (el) el.textContent = carrito[nombre]?.cantidad || 0;
+
+            actualizarBarraCarrito();
+        }
+
+        function actualizarBarraCarrito() {
+            let totalPlatillos = 0;
+            let subtotal = 0;
+            for (let k in carrito) {
+                totalPlatillos += carrito[k].cantidad;
+                subtotal += carrito[k].cantidad * carrito[k].precio;
+            }
+
+            const barra = document.getElementById('barra-carrito');
+            if (totalPlatillos > 0 && cocinaAbierta) {
+                barra.classList.remove('oculta');
+                document.getElementById('barra-cant-items').textContent = `${totalPlatillos} ${totalPlatillos === 1 ? 'platillo' : 'platillos'}`;
+                document.getElementById('barra-monto').textContent = `$${subtotal.toFixed(2)}`;
+            } else {
+                barra.classList.add('oculta');
+            }
+        }
+
+        // 4. MODAL CHECKOUT
+        function abrirModalPedido() {
+            if (!cocinaAbierta) return;
+            const res = document.getElementById('checkout-resumen');
+            res.innerHTML = '';
+            let subtotal = 0;
+            for (let k in carrito) {
+                const it = carrito[k];
+                const totalItem = it.cantidad * it.precio;
+                subtotal += totalItem;
+                const row = document.createElement('div');
+                row.className = 'item-resumen';
+                row.innerHTML = `<span><b class="item-resumen-cant">${it.cantidad}x</b> ${escapar(k)}</span><span>$${totalItem.toFixed(2)}</span>`;
+                res.appendChild(row);
+            }
+
+            document.getElementById('res-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            recalcularTotales();
+
+            document.getElementById('vista-formulario').style.display = 'block';
+            document.getElementById('pantalla-exito').style.display = 'none';
+            document.getElementById('modal-checkout').classList.add('activo');
+        }
+
+        function cerrarModalPedido() {
+            document.getElementById('modal-checkout').classList.remove('activo');
+        }
+
+        function setTipoEntrega(tipo) {
+            tipoEntrega = tipo;
+            document.getElementById('tab-domicilio').classList.toggle('activo', tipo === 'domicilio');
+            document.getElementById('tab-recoge').classList.toggle('activo', tipo === 'recoge');
+            document.getElementById('grupo-direccion').style.display = tipo === 'domicilio' ? 'block' : 'none';
+            document.getElementById('fila-envio').style.display = tipo === 'domicilio' ? 'flex' : 'none';
+            recalcularTotales();
+        }
+
+        function recalcularTotales() {
+            let subtotal = 0;
+            for (let k in carrito) subtotal += carrito[k].cantidad * carrito[k].precio;
+            const costoEnvio = tipoEntrega === 'domicilio' ? COSTO_ENVIO_DEFAULT : 0;
+            const total = subtotal + costoEnvio;
+            document.getElementById('res-total').textContent = `$${total.toFixed(2)}`;
+        }
+
+        // 5. ENVIAR A FIRESTORE
+        async function enviarPedidoFirebase() {
+            if (!cocinaAbierta) {
+                alert('La cocina está fuera de servicio por el momento.');
+                return;
+            }
+
+            const nombre = document.getElementById('cli-nombre').value.trim();
+            const tel = document.getElementById('cli-tel').value.trim();
+            const dir = document.getElementById('cli-dir').value.trim();
+            const notas = document.getElementById('cli-notas').value.trim();
+
+            if (!nombre) { alert('Por favor escribe tu nombre.'); return; }
+            if (!tel) { alert('Por favor escribe tu teléfono para confirmarte.'); return; }
+            if (tipoEntrega === 'domicilio' && !dir) { alert('Por favor escribe tu dirección de entrega y referencias.'); return; }
+
+            const btn = document.getElementById('btn-enviar-pedido');
+            btn.disabled = true;
+            btn.textContent = 'Enviando a cocina... ⏳';
+
+            const itemsArray = [];
+            let comidaTotal = 0;
+            for (let k in carrito) {
+                itemsArray.push({
+                    nombre: k,
+                    cantidad: carrito[k].cantidad,
+                    precio: carrito[k].precio
+                });
+                comidaTotal += carrito[k].cantidad * carrito[k].precio;
+            }
+            const costoEnvio = tipoEntrega === 'domicilio' ? COSTO_ENVIO_DEFAULT : 0;
+            const totalFinal = comidaTotal + costoEnvio;
+            const folio = 'WEB-' + Math.floor(1000 + Math.random() * 9000);
+
+            const detalleTexto = itemsArray.map(i => `${i.cantidad}x ${i.nombre}`).join(', ');
+
+            const pedidoObj = {
+                folio,
+                cliente: nombre,
+                telefono: tel,
+                tipo_entrega: tipoEntrega,
+                direccion: tipoEntrega === 'domicilio' ? dir : '',
+                notas: notas || '',
+                items: itemsArray,
+                detalle: detalleTexto,
+                envio: costoEnvio,
+                total: totalFinal,
+                estado: 'espera',
+                origen: 'web',
+                fecha: new Date().toISOString()
+            };
+
+            try {
+                await db.collection('pedidos_online').add(pedidoObj);
+
+                // MOSTRAR CONFIRMACIÓN
+                document.getElementById('vista-formulario').style.display = 'none';
+                document.getElementById('pantalla-exito').style.display = 'block';
+                document.getElementById('exito-folio').textContent = `FOLIO #${folio}`;
+                document.getElementById('exito-detalles').innerHTML = `
+                    <div><b>Cliente:</b> ${escapar(nombre)} (${escapar(tel)})</div>
+                    <div><b>Entrega:</b> ${tipoEntrega === 'domicilio' ? '🛵 A Domicilio: ' + escapar(dir) : '🏃 Pasa a Recoger'}</div>
+                    <div style="margin-top:6px;"><b>Platillos:</b> ${escapar(detalleTexto)}</div>
+                    ${notas ? `<div><b>Notas:</b> ${escapar(notas)}</div>` : ''}
+                    <div style="margin-top:6px; font-size:15px; font-weight:bold; color:var(--primary);">Total a pagar: $${totalFinal.toFixed(2)}</div>
+                `;
+
+                const msjWa = `¡Hola Cocina Tita! Acabo de hacer el pedido online con Folio #${folio} a nombre de ${nombre} por un total de $${totalFinal.toFixed(2)}.`;
+                document.getElementById('btn-wa-contacto').href = `https://wa.me/522228792951?text=${encodeURIComponent(msjWa)}`;
+
+                // Limpiar carrito
+                carrito = {};
+                renderizarMenu();
+            } catch (err) {
+                console.error('Error al guardar pedido:', err);
+                alert('No se pudo enviar el pedido. Revisa tu conexión a internet.');
+                btn.disabled = false;
+                btn.textContent = '✅ Enviar Pedido a Cocina';
+            }
+        }
+
+        function reiniciarPedido() {
+            cerrarModalPedido();
+            document.getElementById('cli-nombre').value = '';
+            document.getElementById('cli-tel').value = '';
+            document.getElementById('cli-dir').value = '';
+            document.getElementById('cli-notas').value = '';
+            btn = document.getElementById('btn-enviar-pedido');
+            btn.disabled = false;
+            btn.textContent = '✅ Enviar Pedido a Cocina';
+        }
+
+        function escapar(str) {
+            if (!str) return '';
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function escaparId(str) {
+            return encodeURIComponent(str).replace(/[^a-zA-Z0-9]/g, '_');
+        }
+    </script>
+</body>
+</html>

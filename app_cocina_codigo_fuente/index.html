@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cocina Tita - Sistema de Pedidos</title>
+    <meta name="theme-color" content="#bc5543">
+    <link rel="icon" href="img/logo.png">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Firebase SDK v10 (Compat) para pedidos en línea en tiempo real -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <!-- ===================== PANTALLA DE CARGA ===================== -->
+    <div id="splash">
+        <div class="splash-glow"></div>
+        <img src="img/logo.png" class="splash-logo" alt="Cocina Tita">
+        <h1 class="splash-marca">COCINA TITA 🎄</h1>
+        <p class="splash-frase" id="splash-frase"></p>
+        <div class="splash-dots"><span></span><span></span><span></span></div>
+        <div class="splash-sub">Preparando tu jornada con espíritu navideño... ❄️</div>
+    </div>
+
+    <!-- ===================== APP ===================== -->
+    <div id="app" class="oculto">
+        <header>
+            <div class="header-izq">
+                <img src="img/logo.png" class="logo-header" alt="">
+                <div>
+                    <div class="marca">Cocina Tita 🎄</div>
+                    <div class="subtitulo">Edición Navideña ❄️🎅</div>
+                </div>
+            </div>
+            <div class="header-der">
+                <button id="btn-estado-cocina" class="btn-status-cocina online" onclick="toggleEstadoCocina()" title="Presiona para cambiar entre En Línea y Fuera de Línea">🟢 En Línea</button>
+                <input type="text" id="buscador" placeholder="Buscar cliente o platillo..." oninput="filtrarTablero()">
+                <span id="reloj"></span>
+                <button class="btn-icono" onclick="abrirConfig()" title="Configuración">⚙️</button>
+            </div>
+        </header>
+
+        <div class="stats-barra">
+            <div class="stat"><span id="stat-activos">0</span><small>🎁 Pedidos activos</small></div>
+            <div class="stat"><span id="stat-entregados-hoy">0</span><small>✨ Entregados hoy</small></div>
+            <div class="stat"><span id="stat-ventas-hoy">$0</span><small>💰 Ventas Navideñas hoy</small></div>
+        </div>
+
+        <!-- Solo se ve en pantallas angostas (tablet en vertical): cambia qué columna se muestra -->
+        <div class="tabs-tablero">
+            <button class="tab-columna activo" data-estado="espera" onclick="cambiarColumnaMovil('espera')">🎁 En espera <span id="tabcount-espera">0</span></button>
+            <button class="tab-columna" data-estado="enviados" onclick="cambiarColumnaMovil('enviados')">🔥 En horno <span id="tabcount-enviados">0</span></button>
+            <button class="tab-columna" data-estado="entregados" onclick="cambiarColumnaMovil('entregados')">🎄 Entregados <span id="tabcount-entregados">0</span></button>
+        </div>
+
+        <div class="board">
+            <div class="column col-espera columna-activa" id="col-espera">
+                <div class="col-header">🎁 En espera <span class="col-count" id="count-espera">0</span></div>
+                <div id="lista-espera" class="card-list"></div>
+            </div>
+            <div class="column col-enviados" id="col-enviados">
+                <div class="col-header">🔥 En preparación / Horno <span class="col-count" id="count-enviados">0</span></div>
+                <div id="lista-enviados" class="card-list"></div>
+            </div>
+            <div class="column col-entregados" id="col-entregados">
+                <div class="col-header">✨ Entregados / Listos 🎄 <span class="col-count" id="count-entregados">0</span></div>
+                <div id="lista-entregados" class="card-list"></div>
+            </div>
+        </div>
+
+        <footer>
+            <button class="nav-btn" onclick="abrirHistorial()" title="Historial y Balance Navideño">🎁</button>
+            <button class="nav-btn btn-plus" onclick="openModal('modal-opciones')" title="Nuevo / Gasto">+</button>
+            <button class="nav-btn" onclick="openModal('modal-compras')" title="Lista de compras">🛒</button>
+        </footer>
+    </div>
+
+    <!-- ===================== MODAL: OPCIONES ===================== -->
+    <div class="modal-overlay" id="modal-opciones">
+        <div class="modal">
+            <div class="close-modal" onclick="closeModal('modal-opciones')">✕</div>
+            <h2>¿Qué deseas registrar?</h2>
+            <p class="ayuda">Para un pedido que llegó por WhatsApp, cópialo y usa el botón de abajo.</p>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="closeModal('modal-opciones'); openModal('modal-nuevo-pedido')">🌮 Pedido Mostrador 🎄</button>
+                <button class="btn btn-secondary" onclick="closeModal('modal-opciones'); openModal('modal-nuevo-gasto')">💸 Gasto Imprevisto</button>
+            </div>
+            <button class="btn btn-outline btn-full" onclick="closeModal('modal-opciones'); abrirPedidoWhatsapp()">📱 Pedido de WhatsApp 🎅</button>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: NUEVO PEDIDO (mostrador) ===================== -->
+    <div class="modal-overlay" id="modal-nuevo-pedido">
+        <div class="modal form-modal">
+            <div class="close-modal" onclick="closeModal('modal-nuevo-pedido')">✕</div>
+            <h2>Registrar Pedido</h2>
+            <label>Cliente / Teléfono:</label>
+            <input type="text" id="np-cliente" placeholder="Ej. Juan - 2228792951">
+            <label>Detalle (Platillos):</label>
+            <textarea id="np-detalle" rows="3" placeholder="Ej. 1x Arroz, Tacos..."></textarea>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex:1;">
+                    <label>Envío ($):</label>
+                    <input type="number" id="np-envio" value="0">
+                </div>
+                <div style="flex:1;">
+                    <label>Total Comida ($):</label>
+                    <input type="number" id="np-total">
+                </div>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="guardarPedido()">Guardar</button>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: NUEVO GASTO ===================== -->
+    <div class="modal-overlay" id="modal-nuevo-gasto">
+        <div class="modal form-modal">
+            <div class="close-modal" onclick="closeModal('modal-nuevo-gasto')">✕</div>
+            <h2>Registrar Gasto</h2>
+            <label>Descripción:</label>
+            <input type="text" id="ng-desc" placeholder="Ej. Gas, Tortillas...">
+            <label>Monto ($):</label>
+            <input type="number" id="ng-monto">
+            <button class="btn btn-secondary btn-full" onclick="guardarGasto()">Descontar</button>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: LISTA DE COMPRAS ===================== -->
+    <div class="modal-overlay" id="modal-compras">
+        <div class="modal">
+            <div class="close-modal" onclick="closeModal('modal-compras')">✕</div>
+            <h2>🛒 Lista de Compras (Insumos Navideños 🎄)</h2>
+            <div class="fila-agregar" style="margin-top: 14px;">
+                <input type="text" id="item-nombre" placeholder="Producto...">
+                <input type="number" id="item-costo" class="precio-input" placeholder="$ Costo">
+                <button class="btn btn-primary" onclick="agregarItem()" style="flex: 0 0 60px; padding: 8px;">Add</button>
+            </div>
+            <div id="lista-compras" class="lista-editable" style="min-height: 60px;"></div>
+            <div style="text-align: right; font-size: 18px; font-weight: bold; margin: 14px 0;">
+                Total: $<span id="total-compras">0.00</span>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="procesarCompra('CT')">✅ Completa</button>
+                <button class="btn btn-secondary" onclick="procesarCompra('CI')">⚠️ Incompleta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: HISTORIAL Y FINANZAS ===================== -->
+    <div class="modal-overlay" id="modal-historial">
+        <div class="modal" style="width: 92%; max-width: 850px; height: 88vh; display: flex; flex-direction: column;">
+            <div class="close-modal" onclick="closeModal('modal-historial')">✕</div>
+            <h2>🎄 Historial y Balance Navideño</h2>
+
+            <div class="tabs" style="margin-top: 8px; margin-bottom: 12px;">
+                <button class="tab-btn activo" id="tab-btn-hist-hoy" onclick="cambiarTabHistorial('hoy')">📅 Turno de Hoy</button>
+                <button class="tab-btn" id="tab-btn-hist-mes" onclick="cambiarTabHistorial('mes')">🗓️ Días Anteriores y Mes</button>
+            </div>
+
+            <!-- PANEL 1: HOY -->
+            <div id="panel-hist-hoy" class="hist-panel activo" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+                <div class="dashboard-grid">
+                    <div class="dash-card bg-ingresos">
+                        <h3>Ventas de Hoy</h3>
+                        <div class="monto" id="dash-ventas">$0.00</div>
+                    </div>
+                    <div class="dash-card bg-gastos">
+                        <h3>Gastos de Hoy</h3>
+                        <div class="monto" id="dash-gastos">$0.00</div>
+                    </div>
+                    <div class="dash-card bg-balance">
+                        <h3>Balance (Caja)</h3>
+                        <div class="monto" id="dash-balance">$0.00</div>
+                    </div>
+                </div>
+                <h3 style="margin-top: 16px; border-bottom: 2px solid var(--primary); padding-bottom: 5px;">Movimientos de Hoy</h3>
+                <div id="historial-lista" style="flex: 1; overflow-y: auto; margin-top: 8px; border: 1px solid var(--borde); border-radius: 10px; padding: 6px 10px; background: #fafafa;"></div>
+                <button class="btn btn-outline btn-full" style="margin-top: 10px;" onclick="limpiarHistorial()">🧹 Cerrar Día y Archivar Totales</button>
+            </div>
+
+            <!-- PANEL 2: DÍAS ANTERIORES Y REPORTE MENSUAL -->
+            <div id="panel-hist-mes" class="hist-panel" style="flex:1; display:none; flex-direction:column; overflow:hidden;">
+                <div class="selector-mes-bar">
+                    <button class="btn btn-small" onclick="navegarMesHistorial(-1)">◀ Mes anterior</button>
+                    <span id="label-mes-seleccionado" class="mes-titulo">Mes</span>
+                    <button class="btn btn-small" onclick="navegarMesHistorial(1)">Mes siguiente ▶</button>
+                </div>
+
+                <div class="dashboard-grid" style="margin-top: 10px;">
+                    <div class="dash-card bg-ingresos">
+                        <h3>Ventas del Mes</h3>
+                        <div class="monto" id="mes-ventas">$0.00</div>
+                    </div>
+                    <div class="dash-card bg-gastos">
+                        <h3>Gastos del Mes</h3>
+                        <div class="monto" id="mes-gastos">$0.00</div>
+                    </div>
+                    <div class="dash-card bg-balance">
+                        <h3>Ganancia Neta</h3>
+                        <div class="monto" id="mes-balance">$0.00</div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; border-bottom: 2px solid var(--primary); padding-bottom: 4px;">
+                    <h3 style="margin:0;">Días Archivados</h3>
+                    <small id="mes-dias-count" style="color:var(--text-muted); font-weight:600;">0 días registrados</small>
+                </div>
+
+                <div id="lista-dias-archivados" style="flex:1; overflow-y:auto; margin-top:8px; border: 1px solid var(--borde); border-radius:10px; padding:6px 10px; background:#fafafa;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: CONFIGURACIÓN ===================== -->
+    <div class="modal-overlay" id="modal-config">
+        <div class="modal" style="width: 480px; max-height: 85vh; display:flex; flex-direction:column;">
+            <div class="close-modal" onclick="closeModal('modal-config')">✕</div>
+            <h2>⚙️ Configuración</h2>
+            <p class="ayuda">Ajusta cómo funciona tu app y el detector de pedidos de WhatsApp.</p>
+
+            <div class="tabs">
+                <button class="tab-btn activo" data-tab="general" onclick="cambiarTab('general')">General</button>
+                <button class="tab-btn" data-tab="menu" onclick="cambiarTab('menu')">Mi Menú</button>
+                <button class="tab-btn" data-tab="online" onclick="cambiarTab('online')">🌐 Pedidos Web</button>
+            </div>
+
+            <!-- --- TAB: GENERAL --- -->
+            <div class="tab-panel activo" data-panel="general">
+                <div class="fila-toggle">
+                    <div class="txt"><strong>Sonido al iniciar</strong><span>Reproduce un tono al terminar de cargar</span></div>
+                    <label class="switch">
+                        <input type="checkbox" id="cfg-sonido" onchange="guardarConfigDesdeUI()">
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+                <div class="info-conexion">
+                    <strong>📦 Estado de la Aplicación</strong>
+                    <p class="ayuda" style="margin:4px 0 8px;">Modo: <b>APK Nativa (100% Autónoma y Offline)</b>. No requiere servidores ni escribir direcciones IP.</p>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button class="btn btn-outline" style="flex:1; font-size:13px;" onclick="exportarRespaldo()">💾 Guardar Respaldo</button>
+                        <button class="btn btn-outline" style="flex:1; font-size:13px;" onclick="document.getElementById('input-restaurar').click()">📥 Cargar Respaldo</button>
+                        <input type="file" id="input-restaurar" accept=".json" style="display:none;" onchange="restaurarRespaldo(event)">
+                    </div>
+                </div>
+                <div class="info-conexion" style="margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong>🔄 Actualizaciones del Sistema</strong>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Versión instalada: <b id="cfg-app-version">v1.4.0</b></div>
+                        </div>
+                        <button class="btn btn-small btn-primary" style="flex:0 0 auto; padding:8px 12px;" onclick="verificarActualizaciones(true)">Buscar ahora</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --- TAB: MENU --- -->
+            <div class="tab-panel" data-panel="menu">
+                <p class="ayuda">Trae platillos de <b>ejemplo</b> — bórralos y pon los tuyos (con el botón ✕), o usa "pegar varios" para cargarlos todos de un jalón.</p>
+                <div class="fila-agregar">
+                    <input type="text" id="menu-nombre" placeholder="Nombre del platillo">
+                    <input type="number" id="menu-precio" class="precio-input" placeholder="$">
+                    <button class="btn btn-primary" onclick="agregarPlatillo()" style="flex: 0 0 44px; padding: 0;">+</button>
+                </div>
+                <div class="lista-editable" id="lista-menu" style="margin-top:10px;"></div>
+
+                <details class="bulk-import">
+                    <summary>📋 Pegar varios platillos a la vez</summary>
+                    <p class="ayuda">Uno por línea, así: <code>Nombre, Precio</code></p>
+                    <textarea id="menu-bulk" rows="4" placeholder="Tacos Dorados, 15&#10;Mole con Pollo, 90&#10;Arroz, 25"></textarea>
+                    <button class="btn btn-outline btn-full" onclick="importarMenuMasivo()">Agregar todos</button>
+                </details>
+                <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="publicarMenuOnline()">☁️ Sincronizar Menú a la Web de Clientes</button>
+            </div>
+
+            <!-- --- TAB: PEDIDOS WEB --- -->
+            <div class="tab-panel" data-panel="online">
+                <p class="ayuda">Controla la recepción de pedidos en línea en tiempo real con <b>Google Firebase</b>.</p>
+                <div class="info-conexion">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong>Estado de la Cocina en Internet</strong>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;" id="cfg-online-desc">Abierta: Clientes pueden ordenar</div>
+                        </div>
+                        <button class="btn-status-cocina online" id="cfg-btn-toggle-online" onclick="toggleEstadoCocina()">🟢 En Línea</button>
+                    </div>
+                </div>
+
+                <div class="info-conexion" style="margin-top:12px;">
+                    <strong>☁️ Sincronización del Menú</strong>
+                    <p class="ayuda" style="margin:4px 0 8px;">Envía los platillos y precios de tu app directamente a la página de los clientes.</p>
+                    <button class="btn btn-outline btn-full" onclick="publicarMenuOnline()">☁️ Publicar Menú a la Web</button>
+                </div>
+
+                <div class="info-conexion" style="margin-top:12px;">
+                    <strong>🔔 Notificación Sonora de Pedidos</strong>
+                    <p class="ayuda" style="margin:4px 0 8px;">Cuando un cliente pide en la web, sonará un timbre en esta tablet o celular.</p>
+                    <button class="btn btn-outline btn-full" onclick="reproducirTimbrePedidoWeb()">🔔 Probar sonido de aviso</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: PEDIDO DE WHATSAPP (pegar mensaje) ===================== -->
+    <div class="modal-overlay" id="modal-pedido-whatsapp">
+        <div class="modal form-modal">
+            <div class="close-modal" onclick="closeModal('modal-pedido-whatsapp')">✕</div>
+            <h2>📱 Pedido de WhatsApp</h2>
+            <p class="ayuda">Copia el mensaje del cliente y pégalo aquí abajo.</p>
+
+            <label>Cliente / Teléfono (opcional):</label>
+            <input type="text" id="pw-cliente" placeholder="Ej. Juan - 2228792951">
+
+            <label>Mensaje del cliente:</label>
+            <textarea id="pw-texto" rows="4" placeholder="Pega aquí el mensaje tal cual lo mandó..."></textarea>
+
+            <button class="btn btn-primary btn-full" onclick="analizarPedidoWhatsapp()">🔍 Analizar</button>
+
+            <div class="resultado-prueba" id="pw-resultado"></div>
+        </div>
+    </div>
+
+    <!-- ===================== MODAL: ACTUALIZACIÓN DISPONIBLE ===================== -->
+    <div class="modal-overlay" id="modal-actualizacion">
+        <div class="modal" style="width: 440px; text-align: center;">
+            <div style="font-size: 40px; margin-bottom: 8px;">🚀</div>
+            <h2>¡Actualización Disponible!</h2>
+            <p class="ayuda" id="upd-subtitulo">Hay una nueva versión de Cocina Tita lista para instalar.</p>
+
+            <div class="info-version-box">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <span>Versión actual:</span>
+                    <b id="upd-ver-actual">v1.1.0</b>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:var(--primary);">
+                    <span>Nueva versión:</span>
+                    <b id="upd-ver-nueva">v1.2.0</b>
+                </div>
+                <div style="margin-top:8px; border-top:1px solid #ddd; padding-top:6px;">
+                    <strong style="font-size:12.5px; color:#555;">Novedades:</strong>
+                    <p id="upd-novedades" style="font-size:13px; margin:4px 0 0; color:#333; line-height:1.4;"></p>
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top:14px;">
+                <button class="btn btn-ghost" onclick="closeModal('modal-actualizacion')">Más tarde</button>
+                <button class="btn btn-primary" id="btn-descargar-upd" onclick="descargarEInstalarActualizacion()">📲 Actualizar Ahora</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <audio id="sonido-bienvenida" src="sounds/bienvenida.wav" preload="auto"></audio>
+
+    <script src="js/pedido_parser.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
